@@ -1,10 +1,10 @@
-FROM alpine
+FROM alpine AS build-deps
 
 LABEL maintainer="Tony <i@tony.moe>"
 
 ENV TRANSMISSION_VERSION 2.94
 
-COPY mod.patch /usr/mod.patch
+COPY mod.patch /root/mod.patch
 
 RUN apk add --no-cache --virtual .build-deps \
     automake \
@@ -33,25 +33,29 @@ RUN apk add --no-cache --virtual .build-deps \
     | xz -d \
     | tar --strip-components 1 -C transmission -xf - \
   && cd transmission \
-  && patch -p1 < /usr/mod.patch \
+  && patch -p1 < /root/mod.patch \
   && ./configure \
   && make \
-  && make install \
+  && make install DESTDIR=/usr/src/build-deps \
   \
-  && strip /usr/local/bin/transmission-* \
-  && rm -rf /usr/src /usr/mod.patch \
-  \
-  && runDeps=$( \
+  && cd .. \
+  && strip build-deps/usr/local/bin/transmission-*
+
+FROM alpine
+
+COPY --from=build-deps /usr/src/build-deps /
+
+RUN runDeps=$( \
     scanelf --needed --nobanner --format '%n#p' /usr/local/bin/transmission-* \
       | tr ',' '\n' \
       | sort -u \
       | awk 'system("[ -e /usr/local/lib/" $1 " ]") == 0 { next } { print "so:" $1 }' \
   ) \
-  && apk add --no-cache --virtual .transmission-rundeps $runDeps \
-  && apk del .build-deps
+  && apk add --no-cache --virtual .transmission-rundeps $runDeps
 
 COPY config /config
 
+VOLUME ["/config", "/downloads", "/watch"]
 EXPOSE 9091 51413
 
-CMD ["transmission-daemon","-f","-g","/config"]
+CMD ["transmission-daemon", "-f", "-g", "/config"]
