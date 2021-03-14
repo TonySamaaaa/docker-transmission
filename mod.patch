@@ -1,54 +1,42 @@
-diff -ruN transmission-2.94/libtransmission/handshake.c transmission-2.94-mod/libtransmission/handshake.c
---- transmission-2.94/libtransmission/handshake.c	2018-05-01 13:21:08.221549584 -0400
-+++ transmission-2.94-mod/libtransmission/handshake.c	2019-12-09 18:54:45.024334213 -0500
-@@ -282,6 +282,9 @@
-   handshake->havePeerID = true;
-   dbgmsg (handshake, "peer-id is [%*.*s]", PEER_ID_LEN, PEER_ID_LEN, peer_id);
+--- transmission/libtransmission/handshake.c
++++ transmission-mod/libtransmission/handshake.c
+@@ -271,6 +271,7 @@
+     handshake->havePeerID = true;
+     dbgmsg(handshake, "peer-id is [%*.*s]", PEER_ID_LEN, PEER_ID_LEN, peer_id);
  
-+  if (tr_mod_client_banned(peer_id))
-+    return HANDSHAKE_ENCRYPTION_WRONG;
-+
-   tor = tr_torrentFindFromHash (handshake->session, hash);
-   if (!memcmp (peer_id, tr_torrentGetPeerId(tor), PEER_ID_LEN))
-     {
-diff -ruN transmission-2.94/libtransmission/peer-mgr.c transmission-2.94-mod/libtransmission/peer-mgr.c
---- transmission-2.94/libtransmission/peer-mgr.c	2018-05-01 13:21:08.225549602 -0400
-+++ transmission-2.94-mod/libtransmission/peer-mgr.c	2019-12-09 18:54:18.843658055 -0500
-@@ -2016,7 +2016,7 @@
-       if (io->utp_socket)
-         atom->flags |= ADDED_F_UTP_FLAGS;
++	if(client_banned(peer_id)) return HANDSHAKE_ENCRYPTION_WRONG;
+     tor = tr_torrentFindFromHash(handshake->session, hash);
  
--      if (atom->flags2 & MYFLAG_BANNED)
-+      if ((atom->flags2 & MYFLAG_BANNED) | tr_mod_client_banned(peer_id))
+     if (memcmp(peer_id, tr_torrentGetPeerId(tor), PEER_ID_LEN) == 0)
+--- transmission/libtransmission/peer-mgr.c
++++ transmission-mod/libtransmission/peer-mgr.c
+@@ -2080,7 +2080,7 @@
+             atom->flags |= ADDED_F_UTP_FLAGS;
+         }
+ 
+-        if ((atom->flags2 & MYFLAG_BANNED) != 0)
++        if (((atom->flags2 & MYFLAG_BANNED)|client_banned(peer_id)) != 0)
          {
-           tordbg (s, "banned peer %s tried to reconnect",
-                   tr_atomAddrStr (atom));
-@@ -4082,3 +4082,16 @@
+             tordbg(s, "banned peer %s tried to reconnect", tr_atomAddrStr(atom));
+         }
+--- transmission/libtransmission/peer-mgr.h
++++ transmission-mod/libtransmission/peer-mgr.h
+@@ -136,4 +136,18 @@
  
-   tr_free (candidates);
- }
-+
-+bool
-+tr_mod_client_banned (const uint8_t * peer_id)
+ void tr_peerMgrPieceCompleted(tr_torrent* tor, tr_piece_index_t pieceIndex);
+ 
++static bool client_banned (const uint8_t * peer_id)
 +{
 +  bool banned = false;
-+  if (peer_id == NULL)
-+    return banned;
++  if (peer_id == NULL) return banned;
 +  banned |= !memcmp(peer_id+1, "SD", 2);
 +  banned |= !memcmp(peer_id+1, "XL", 2);
-+  if (banned)
-+    tr_logAddNamedError ("Some client has been banned.", "(Client filter)");
++  banned |= !memcmp(peer_id+1, "QD", 2);
++  banned |= !memcmp(peer_id+1, "XF", 2);
++  banned |= !memcmp(peer_id+1, "BN", 2);
++  // if (banned)
++  // tr_logAddNamedError ("Client banned.", "(Client filter)");
 +  return banned;
 +}
-diff -ruN transmission-2.94/libtransmission/peer-mgr.h transmission-2.94-mod/libtransmission/peer-mgr.h
---- transmission-2.94/libtransmission/peer-mgr.h	2018-05-01 13:21:08.225549602 -0400
-+++ transmission-2.94-mod/libtransmission/peer-mgr.h	2019-12-09 18:41:07.535235342 -0500
-@@ -185,7 +185,7 @@
-                                              tr_piece_index_t     pieceIndex);
- 
- 
--
-+bool         tr_mod_client_banned           (const uint8_t      * peer_id);
++
  /* @} */
- 
- #endif

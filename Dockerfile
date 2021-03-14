@@ -2,7 +2,7 @@ FROM alpine AS build-deps
 
 LABEL maintainer="Tony <i@tony.moe>"
 
-ENV TRANSMISSION_VERSION 2.94
+ENV TRANSMISSION_VERSION 3.00
 
 COPY mod.patch /root/mod.patch
 
