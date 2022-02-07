@@ -1,0 +1,40 @@
+--- transmission/libtransmission/handshake.c
++++ transmission-mod/libtransmission/handshake.c
+@@ -271,6 +271,7 @@
+     handshake->havePeerID = true;
+     dbgmsg(handshake, "peer-id is [%*.*s]", PEER_ID_LEN, PEER_ID_LEN, peer_id);
+ 
++    if(client_banned(peer_id)) return HANDSHAKE_ENCRYPTION_WRONG;
+     tor = tr_torrentFindFromHash(handshake->session, hash);
+ 
+     if (memcmp(peer_id, tr_torrentGetPeerId(tor), PEER_ID_LEN) == 0)
+--- transmission/libtransmission/peer-mgr.c
++++ transmission-mod/libtransmission/peer-mgr.c
+@@ -2080,7 +2080,7 @@
+             atom->flags |= ADDED_F_UTP_FLAGS;
+         }
+ 
+-        if ((atom->flags2 & MYFLAG_BANNED) != 0)
++        if (((atom->flags2 & MYFLAG_BANNED) | client_banned(peer_id)) != 0)
+         {
+             tordbg(s, "banned peer %s tried to reconnect", tr_atomAddrStr(atom));
+         }
+--- transmission/libtransmission/peer-mgr.h
++++ transmission-mod/libtransmission/peer-mgr.h
+@@ -136,4 +136,16 @@
+ 
+ void tr_peerMgrPieceCompleted(tr_torrent* tor, tr_piece_index_t pieceIndex);
+ 
++static bool client_banned (const uint8_t * peer_id)
++{
++  bool banned = false;
++  if (peer_id == NULL) return banned;
++  banned |= !memcmp(peer_id + 1, "SD", 2);
++  banned |= !memcmp(peer_id + 1, "XL", 2);
++  banned |= !memcmp(peer_id + 1, "QD", 2);
++  banned |= !memcmp(peer_id + 1, "XF", 2);
++  banned |= !memcmp(peer_id + 1, "BN", 2);
++  return banned;
++}
++
+ /* @} */
